@@ -1,62 +1,215 @@
-# caixaverso-10-ve-jv-002
+# API de Gerenciamento de Produtos
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+Projeto desenvolvido em Quarkus para gerenciamento de produtos, com autenticação e autorização via JWT.
 
-If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
+## Tecnologias utilizadas
 
-## Running the application in dev mode
+- Java
+- Quarkus
+- Maven
+- Hibernate ORM com Panache
+- Banco H2 em memória
+- SmallRye JWT
+- BCrypt para hash de senha
+- REST API com JSON
 
-You can run your application in dev mode that enables live coding using:
+## Funcionalidades implementadas
 
-```shell script
+- Cadastro de usuários
+- Login com geração de token JWT
+- Usuários padrão carregados ao iniciar a aplicação
+- CRUD de produtos
+- Controle de acesso por roles:
+  - `ADMIN`
+  - `USER`
+
+## Usuários padrão
+
+Ao iniciar a aplicação, dois usuários são criados automaticamente:
+
+| Nome | E-mail | Senha | Role |
+|---|---|---|---|
+| Admin Sistema | admin@loja.com | admin123 | ADMIN |
+| User Padrão | user@loja.com | user123 | USER |
+
+## Como executar o projeto
+
+No terminal, dentro da pasta do projeto:
+
+```bash
 ./mvnw quarkus:dev
 ```
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
+A aplicação ficará disponível em:
 
-## Packaging and running the application
-
-The application can be packaged using:
-
-```shell script
-./mvnw package
+```text
+http://localhost:8080
 ```
 
-It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory.
-Be aware that it’s not an _über-jar_ as the dependencies are copied into the `target/quarkus-app/lib/` directory.
+## Configuração do banco H2
 
-The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
+Exemplo de configuração usada em `application.properties`:
 
-If you want to build an _über-jar_, execute the following command:
+```properties
+quarkus.datasource.db-kind=h2
+quarkus.datasource.username=sa
+quarkus.datasource.password=sa
+quarkus.datasource.jdbc.url=jdbc:h2:mem:produtos;DB_CLOSE_DELAY=-1
 
-```shell script
-./mvnw package -Dquarkus.package.jar.type=uber-jar
+quarkus.hibernate-orm.database.generation=drop-and-create
+quarkus.hibernate-orm.log.sql=true
 ```
 
-The application, packaged as an _über-jar_, is now runnable using `java -jar target/*-runner.jar`.
+## Autenticação
 
-## Creating a native executable
+### Login ADMIN
 
-You can create a native executable using:
-
-```shell script
-./mvnw package -Dnative
+```bash
+curl -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@loja.com",
+    "senha": "admin123"
+  }'
 ```
 
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
+Resposta esperada:
 
-```shell script
-./mvnw package -Dnative -Dquarkus.native.container-build=true
+```json
+{
+  "token": "TOKEN_JWT_GERADO",
+  "tipo": "Bearer",
+  "role": "ADMIN"
+}
 ```
 
-You can then execute your native executable with: `./target/caixaverso-10-ve-jv-002-1.0.0-SNAPSHOT-runner`
+## Cadastro de usuário
 
-If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
+```bash
+curl -X POST http://localhost:8080/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nome": "João Silva",
+    "email": "joao@email.com",
+    "senha": "minhaSenha123",
+    "role": "USER"
+  }'
+```
 
-## Provided Code
+## Endpoints de produtos
 
-### REST
+Todos os endpoints de produtos exigem token JWT no header:
 
-Easily start your REST Web Services
+```text
+Authorization: Bearer TOKEN_AQUI
+```
 
-[Related guide section...](https://quarkus.io/guides/getting-started-reactive#reactive-jax-rs-resources)
+### Listar produtos
+
+Permitido para `ADMIN` e `USER`.
+
+```bash
+curl -X GET http://localhost:8080/produtos \
+  -H "Authorization: Bearer TOKEN_AQUI"
+```
+
+### Buscar produto por ID
+
+Permitido para `ADMIN` e `USER`.
+
+```bash
+curl -X GET http://localhost:8080/produtos/1 \
+  -H "Authorization: Bearer TOKEN_AQUI"
+```
+
+### Cadastrar produto
+
+Permitido apenas para `ADMIN`.
+
+```bash
+curl -X POST http://localhost:8080/produtos \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN_ADMIN_AQUI" \
+  -d '{
+    "nome": "Caneta Azul",
+    "descricao": "Caneta esferográfica azul",
+    "preco": 1.99,
+    "estoque": 3
+  }'
+```
+
+### Atualizar produto
+
+Permitido apenas para `ADMIN`.
+
+```bash
+curl -X PUT http://localhost:8080/produtos/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN_ADMIN_AQUI" \
+  -d '{
+    "nome": "Caneta Azul",
+    "descricao": "Caneta esferográfica azul atualizada",
+    "preco": 2.50,
+    "estoque": 10
+  }'
+```
+
+### Remover produto
+
+Permitido apenas para `ADMIN`.
+
+```bash
+curl -X DELETE http://localhost:8080/produtos/1 \
+  -H "Authorization: Bearer TOKEN_ADMIN_AQUI"
+```
+
+## Regras de autorização
+
+| Endpoint | ADMIN | USER |
+|---|---|---|
+| `GET /produtos` | Sim | Sim |
+| `GET /produtos/{id}` | Sim | Sim |
+| `POST /produtos` | Sim | Não |
+| `PUT /produtos/{id}` | Sim | Não |
+| `DELETE /produtos/{id}` | Sim | Não |
+
+## Possíveis respostas de erro
+
+### Não autenticado
+
+```json
+{
+  "erro": "Não autenticado"
+}
+```
+
+### Acesso negado
+
+```json
+{
+  "erro": "Acesso negado"
+}
+```
+
+### Produto não encontrado
+
+```json
+{
+  "erro": "Produto não encontrado"
+}
+```
+
+### Campos obrigatórios não informados
+
+```json
+{
+  "erro": "Campos obrigatórios não informados"
+}
+```
+
+## Observações
+
+- A senha dos usuários é armazenada com hash BCrypt.
+- O token JWT possui validade de 1 hora.
+- O campo `groups` do JWT é usado para validar as roles `ADMIN` e `USER`.
+- Usuários comuns podem consultar produtos, mas não podem cadastrar, alterar ou remover produtos.
